@@ -28,3 +28,6 @@
 [submodule "plugins/hm-require-login"]
 	path = plugins/hm-require-login
 	url = git@github.com:humanmade/hm-require-login.git
+[submodule "dropins/mercator"]
+	path = dropins/mercator
+	url = https://github.com/humanmade/Mercator.git
