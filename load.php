@@ -109,6 +109,7 @@ function get_config() {
 		'elasticsearch'   => defined( 'ELASTICSEARCH_HOST' ),
 		'healthcheck'     => true,
 		'require-login'   => false,
+		'mercator'        => false,
 	);
 	return array_merge( $defaults, $hm_platform ? $hm_platform : array() );
 }
@@ -157,6 +158,20 @@ function load_advanced_cache( $should_load ) {
 	}
 
 	add_action( 'admin_init', __NAMESPACE__ . '\\disable_no_cache_headers_on_admin_ajax_nopriv' );
+	require __DIR__ . '/dropins/batcache/advanced-cache.php';
+}
+
+function load_domain_mapping() {
+	$config = get_config();
+
+	if ( ! $config['mercator'] ) {
+		return;
+	}
+
+	if ( ! defined( 'SUNRISE' ) ) {
+		define( 'SUNRISE', true );
+	}
+
 	require __DIR__ . '/dropins/batcache/advanced-cache.php';
 }
 
