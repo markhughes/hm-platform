@@ -172,7 +172,7 @@ function load_domain_mapping() {
 		define( 'SUNRISE', true );
 	}
 
-	require __DIR__ . '/dropins/batcache/advanced-cache.php';
+	require __DIR__ . '/dropins/mercator/mercator.php';
 }
 
 /**
