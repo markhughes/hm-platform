@@ -31,3 +31,6 @@
 [submodule "plugins/hm-require-login"]
 	path = plugins/hm-require-login
 	url = git@github.com:humanmade/hm-require-login.git
+[submodule "plugins/redis-cache"]
+	path = plugins/redis-cache
+	url = https://github.com/rhubarbgroup/redis-cache.git

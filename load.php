@@ -46,6 +46,7 @@ function bootstrap( $wp_debug_enabled ) {
 	// Load the common AWS SDK.
 	require __DIR__ . '/lib/aws-sdk/aws-autoloader.php';
 
+	load_domain_mapping();
 	load_object_cache();
 	load_db();
 
@@ -102,14 +103,15 @@ function get_config() {
 		'tachyon'         => true,
 		'cavalcade'       => true,
 		'batcache'        => true,
-		'memcached'       => get_environment_architecture() === 'ec2',
-		'redis'           => get_environment_architecture() === 'ecs',
+		'mercator'        => false,
+		'memcached'       => false,
+		'redis-cache'     => false,
+		'redis'           => false,
 		'ludicrousdb'     => true,
 		'xray'            => true,
 		'elasticsearch'   => defined( 'ELASTICSEARCH_HOST' ),
 		'healthcheck'     => true,
 		'require-login'   => false,
-		'mercator'        => false,
 	);
 	return array_merge( $defaults, $hm_platform ? $hm_platform : array() );
 }
@@ -120,13 +122,65 @@ function get_config() {
 function load_object_cache() {
 	$config = get_config();
 
-	if ( ! $config['memcached'] && ! $config['redis'] ) {
+	if ( ! $config['memcached'] && ! $config['redis'] && ! $config['redis-cache'] ) {
 		return;
 	}
 
 	wp_using_ext_object_cache( true );
 	if ( $config['memcached'] ) {
 		require __DIR__ . '/dropins/wordpress-pecl-memcached-object-cache/object-cache.php';
+	} elseif ( $config['redis-cache'] ) {
+		// Support plugins_url for redis-cache
+		add_filter( 'plugins_url', function ($url, $path, $plugin) {
+			if (strpos($plugin, 'hm-platform/plugins/redis-cache/redis-cache.php') !== false) {
+				$url = '//' . $_SERVER['HTTP_HOST'] . '/hm-platform/plugins/redis-cache/' . $path;
+			}
+			return $url;
+		}, 50, 3);
+
+
+		if ( ! defined( 'WP_REDIS_DISABLE_BANNERS' ) ) {
+			define( 'WP_REDIS_DISABLE_BANNERS', true );
+		}
+
+		$client = 'credis';
+
+		if ( class_exists( 'Redis' ) ) {
+			$client = defined( 'HHVM_VERSION' ) ? 'hhvm' : 'phpredis';
+		}
+
+		if ( defined( 'WP_REDIS_CLIENT' ) ) {
+			$client = (string) WP_REDIS_CLIENT;
+			$client = str_replace( 'pecl', 'phpredis', $client );
+		}
+		
+		if ($client === 'credis' ) {
+			$credis_path = __DIR__ . '/plugins/redis-cache/dependencies/colinmollenhour/credis/';
+
+			$to_load = [];
+
+			if ( ! class_exists( 'Credis_Client' ) ) {
+				$to_load[] = 'Client.php';
+			}
+
+			$has_shards = defined( 'WP_REDIS_SHARDS' );
+			$has_sentinel = defined( 'WP_REDIS_SENTINEL' );
+			$has_servers = defined( 'WP_REDIS_SERVERS' );
+			$has_cluster = defined( 'WP_REDIS_CLUSTER' );
+
+			if ( ( $has_shards || $has_sentinel || $has_servers || $has_cluster ) && ! class_exists( 'Credis_Cluster' ) ) {
+				$to_load[] = 'Cluster.php';
+
+				if ( defined( 'WP_REDIS_SENTINEL' ) && ! class_exists( 'Credis_Sentinel' ) ) {
+					$to_load[] = 'Sentinel.php';
+				}
+			}
+			
+			foreach ($to_load as $load) {
+				require $credis_path . $load;
+			}
+		}
+		require __DIR__ . '/plugins/redis-cache/includes/object-cache.php';
 	} elseif ( $config['redis'] ) {
 		require __DIR__ . '/inc/alloptions_fix/namespace.php';
 		require __DIR__ . '/dropins/wp-redis-predis-client/vendor/autoload.php';
@@ -161,18 +215,33 @@ function load_advanced_cache( $should_load ) {
 	require __DIR__ . '/dropins/batcache/advanced-cache.php';
 }
 
+/**
+ * This is the first useful function called inside of multisite, and seems functional to load mercator here.
+ */
+function intercept_pre_get_site_by_path( $site, $domain, $path, $path_segments, $paths ) {
+	if ( ! isset( $GLOBALS['hm_mercator_loaded'] ) ) {
+		$GLOBALS['hm_mercator_loaded'] = true;
+		require __DIR__ . '/dropins/mercator/mercator.php';
+
+
+		$site = apply_filters( 'pre_get_site_by_path', $site, $domain, $path, $path_segments, $paths );
+	} else {
+		// Remove ourselves 
+		remove_action( 'pre_get_site_by_path', __NAMESPACE__ . '\\intercept_pre_get_site_by_path', 1 );
+	}
+	return $site;
+}
+
+/**
+ * Load the domain mapping as required.
+ */
 function load_domain_mapping() {
 	$config = get_config();
-
 	if ( ! $config['mercator'] ) {
 		return;
 	}
 
-	if ( ! defined( 'SUNRISE' ) ) {
-		define( 'SUNRISE', true );
-	}
-
-	require __DIR__ . '/dropins/mercator/mercator.php';
+	add_filter( 'pre_get_site_by_path', __NAMESPACE__ . '\\intercept_pre_get_site_by_path', 1, 10);
 }
 
 /**
