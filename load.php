@@ -16,6 +16,8 @@ if (
     XRay\bootstrap();
 }
 
+load_domain_mapping();
+
 // Load the platform as soon as WP is loaded.
 $GLOBALS['wp_filter']['enable_wp_debug_mode_checks'][10]['hm_platform'] = array(
 	'function' => __NAMESPACE__ . '\\bootstrap',
@@ -46,7 +48,6 @@ function bootstrap( $wp_debug_enabled ) {
 	// Load the common AWS SDK.
 	require __DIR__ . '/lib/aws-sdk/aws-autoloader.php';
 
-	load_domain_mapping();
 	load_object_cache();
 	load_db();
 
@@ -216,23 +217,6 @@ function load_advanced_cache( $should_load ) {
 }
 
 /**
- * This is the first useful function called inside of multisite, and seems functional to load mercator here.
- */
-function intercept_pre_get_site_by_path( $site, $domain, $path, $path_segments, $paths ) {
-	if ( ! isset( $GLOBALS['hm_mercator_loaded'] ) ) {
-		$GLOBALS['hm_mercator_loaded'] = true;
-		require __DIR__ . '/dropins/mercator/mercator.php';
-
-
-		$site = apply_filters( 'pre_get_site_by_path', $site, $domain, $path, $path_segments, $paths );
-	} else {
-		// Remove ourselves 
-		remove_action( 'pre_get_site_by_path', __NAMESPACE__ . '\\intercept_pre_get_site_by_path', 1 );
-	}
-	return $site;
-}
-
-/**
  * Load the domain mapping as required.
  */
 function load_domain_mapping() {
@@ -241,7 +225,22 @@ function load_domain_mapping() {
 		return;
 	}
 
-	add_filter( 'pre_get_site_by_path', __NAMESPACE__ . '\\intercept_pre_get_site_by_path', 1, 10);
+	// Check for WP Core Patch
+	$path = ABSPATH . '/wp-includes/ms-settings.php';
+	$contents = file_get_contents($path);
+
+	if ( strpos( $contents, 'WP_SUNRISE_FILE' ) !== false ) {
+		$patch = '	if ( ! defined( \'WP_SUNRISE_FILE\' ) {' . PHP_EOL .
+				 '		define(\'WP_SUNRISE_FILE\', WP_CONTENT_DIR . \'/sunrise.php\'); ' . PHP_EOL . 
+				 '	}' . PHP_EOL . 
+				 '	include_once WP_SUNRISE_FILE;' . PHP_EOL;
+				
+		$contents = str_replace('include_once WP_CONTENT_DIR . \'/sunrise.php\';', $patch, $contents);
+
+		file_put_contents( $path, $contents );
+	} 
+
+	define( 'WP_SUNRISE_FILE', __DIR__ . '/dropins/mercator/mercator.php' );
 }
 
 /**

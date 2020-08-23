@@ -61,10 +61,10 @@ function add_platform_link( $views ) {
  */
 function get_dropins() {
 	return array(
-		'batcache' => 'batcache/batcache.php',
-		'memcached' => 'wordpress-pecl-memcached-object-cache/object-cache.php',
-		'ludicrousdb' => 'ludicrousdb/ludicrousdb.php',
-		'mercator' => 'mercator/mercator.php',
+		'batcache'     => 'batcache/batcache.php',
+		'memcached'    => 'wordpress-pecl-memcached-object-cache/object-cache.php',
+		'ludicrousdb'  => 'ludicrousdb/ludicrousdb.php',
+		'mercator'     => 'mercator/mercator.php',
 	);
 }
 

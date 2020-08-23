@@ -15,7 +15,7 @@
 	url = https://github.com/stuttter/ludicrousdb.git
 [submodule "dropins/mercator"]
 	path = dropins/mercator
-	url = https://github.com/humanmade/Mercator.git
+	url = https://github.com/refunktor/Mercator.git
 [submodule "plugins/cavalcade"]
 	path = plugins/cavalcade
 	url = https://github.com/humanmade/Cavalcade.git
